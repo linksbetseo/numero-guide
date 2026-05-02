@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 import Link from "next/link";
 import { LogOut } from "lucide-react";
 import { logoutAction } from "@/app/actions";

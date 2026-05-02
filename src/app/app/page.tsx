@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 import Link from "next/link";
 import { MessageCircle, Sparkles } from "lucide-react";
 import { selectPathAction } from "@/app/actions";

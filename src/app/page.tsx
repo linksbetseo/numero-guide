@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 import Link from "next/link";
 import { ArrowRight, Check, LockKeyhole, Sparkles } from "lucide-react";
 import { getPaths, getPlans, formatMoney } from "@/lib/plans";

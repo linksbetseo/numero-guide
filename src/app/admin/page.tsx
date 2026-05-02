@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 import Link from "next/link";
 import { adminGrantAccessAction, adminResetProfileAction, adminRevokeAccessAction, logoutAction } from "@/app/actions";
 import { requireAdmin } from "@/lib/auth";

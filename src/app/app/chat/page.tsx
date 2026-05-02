@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 import { redirect } from "next/navigation";
 import { ChatClient, type ChatMessage } from "@/components/ChatClient";
 import { getCurrentAccess } from "@/lib/access";

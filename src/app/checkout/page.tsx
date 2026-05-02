@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 import Link from "next/link";
 import { CreditCard, ShieldCheck } from "lucide-react";
 import { checkoutAction } from "@/app/actions";
