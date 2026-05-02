@@ -1,5 +1,5 @@
 import { prisma } from "./db";
-import { createFakeAiAnswer } from "./fake-ai";
+import { getAiAnswer, estimateCostCents } from "./ai";
 import { getCurrentAccess } from "./access";
 import { buildWelcomeMessage, detectCrisis, CRISIS_RESPONSE } from "./persona/ariadne";
 
@@ -145,15 +145,23 @@ export async function sendChatMessage(userId: string, content: string) {
   }
 
   const conversation = await getOrCreateConversation(userId);
-  const knowledge = await prisma.knowledgeDocument.findMany({
-    where: { active: true },
-    orderBy: { updatedAt: "desc" },
-    take: 3,
-  });
+  const [knowledge, recentMessages] = await Promise.all([
+    prisma.knowledgeDocument.findMany({
+      where: { active: true },
+      orderBy: { updatedAt: "desc" },
+      take: 3,
+    }),
+    prisma.message.findMany({
+      where: { conversationId: conversation.id, role: { in: ["USER", "ASSISTANT"] } },
+      orderBy: { createdAt: "desc" },
+      take: 20,
+    }),
+  ]);
 
-  const messageCount = await prisma.message.count({
-    where: { conversationId: conversation.id, role: "ASSISTANT" },
-  });
+  const history = recentMessages
+    .reverse()
+    .filter((m) => m.role === "USER" || m.role === "ASSISTANT")
+    .map((m) => ({ role: m.role === "USER" ? "user" as const : "assistant" as const, content: m.content }));
 
   const userMessage = await prisma.message.create({
     data: {
@@ -165,13 +173,16 @@ export async function sendChatMessage(userId: string, content: string) {
     },
   });
 
-  const answer = createFakeAiAnswer({
+  const answer = await getAiAnswer({
     question: message,
     profile,
     path: conversation.path,
     knowledge,
-    messageCount,
+    history,
   });
+
+  const outputTokens = Math.ceil(answer.length / 4);
+  const inputTokens = Math.ceil((history.map(m => m.content).join("").length + message.length) / 4);
 
   const assistantMessage = await prisma.message.create({
     data: {
@@ -180,8 +191,8 @@ export async function sendChatMessage(userId: string, content: string) {
       content: answer,
       promptVersion: "ariadne-v1",
       knowledgeVersion: knowledge[0]?.version ?? "kb-v1",
-      tokenEstimate: Math.ceil(answer.length / 4),
-      costEstimateCents: 0,
+      tokenEstimate: outputTokens,
+      costEstimateCents: estimateCostCents(inputTokens, outputTokens),
     },
   });
 
