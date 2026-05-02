@@ -1,0 +1,226 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  USER
+  ADMIN
+}
+
+enum OrderStatus {
+  PENDING
+  PAID
+  FAILED
+  REFUNDED
+}
+
+enum AccessStatus {
+  ACTIVE
+  REVOKED
+}
+
+enum MessageRole {
+  USER
+  ASSISTANT
+  SYSTEM
+}
+
+enum UserPathStatus {
+  AVAILABLE
+  ACTIVE
+  COMPLETED
+}
+
+model User {
+  id             String               @id @default(cuid())
+  email          String               @unique
+  passwordHash   String
+  role           UserRole             @default(USER)
+  displayName    String?
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
+  sessions       Session[]
+  orders         Order[]
+  accessGrants   AccessGrant[]
+  profile        NumerologyProfile?
+  userPaths      UserPath[]
+  conversations  Conversation[]
+  messages       Message[]
+  actorAuditLogs AuditLog[]           @relation("ActorAuditLogs")
+  targetLogs     AuditLog[]           @relation("TargetAuditLogs")
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  tokenHash String   @unique
+  userId    String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model Plan {
+  id           String        @id @default(cuid())
+  slug         String        @unique
+  name         String
+  description  String
+  priceCents   Int
+  currency     String        @default("PLN")
+  durationDays Int
+  pathLimit    Int
+  highlighted  Boolean       @default(false)
+  createdAt    DateTime      @default(now())
+  orders       Order[]
+  accessGrants AccessGrant[]
+}
+
+model Path {
+  id          String     @id @default(cuid())
+  slug        String     @unique
+  name        String
+  description String
+  sortOrder   Int        @default(0)
+  userPaths   UserPath[]
+  conversations Conversation[]
+}
+
+model Order {
+  id                         String      @id @default(cuid())
+  userId                     String
+  planId                     String
+  status                     OrderStatus @default(PENDING)
+  email                      String
+  amountCents                Int
+  currency                   String      @default("PLN")
+  provider                   String      @default("demo")
+  providerOrderId            String      @unique
+  termsVersion               String
+  aiTermsVersion             String
+  privacyVersion             String
+  immediateServiceConsentAt  DateTime
+  createdAt                  DateTime    @default(now())
+  paidAt                     DateTime?
+  user                       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plan                       Plan        @relation(fields: [planId], references: [id])
+
+  @@index([userId])
+  @@index([status])
+}
+
+model AccessGrant {
+  id        String       @id @default(cuid())
+  userId    String
+  planId    String
+  startsAt  DateTime
+  endsAt    DateTime
+  status    AccessStatus @default(ACTIVE)
+  revokedAt DateTime?
+  createdAt DateTime     @default(now())
+  user      User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plan      Plan         @relation(fields: [planId], references: [id])
+
+  @@index([userId, status, endsAt])
+}
+
+model NumerologyProfile {
+  id            String   @id @default(cuid())
+  userId        String   @unique
+  firstNames    String
+  lastNames     String
+  previousNames String?
+  birthDate     String
+  lifePath      Int
+  expression    Int
+  soul          Int
+  personality   Int
+  birthDay      Int
+  maturity      Int
+  personalYear  Int      @default(0)
+  challenges    String   @default("[]")
+  trace         String
+  lockedAt      DateTime?
+  resetCount    Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model UserPath {
+  id        String         @id @default(cuid())
+  userId    String
+  pathId    String
+  status    UserPathStatus @default(AVAILABLE)
+  stage     Int            @default(1)
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+  user      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  path      Path           @relation(fields: [pathId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, pathId])
+  @@index([userId])
+}
+
+model Conversation {
+  id        String    @id @default(cuid())
+  userId    String
+  pathId    String?
+  title     String    @default("Rozmowa przewodnia")
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  path      Path?     @relation(fields: [pathId], references: [id])
+  messages  Message[]
+
+  @@index([userId, updatedAt])
+}
+
+model Message {
+  id               String      @id @default(cuid())
+  conversationId   String
+  userId           String?
+  role             MessageRole
+  content          String
+  promptVersion    String?
+  knowledgeVersion String?
+  tokenEstimate    Int         @default(0)
+  costEstimateCents Int        @default(0)
+  createdAt        DateTime    @default(now())
+  conversation     Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  user             User?       @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([conversationId, createdAt])
+  @@index([userId, createdAt])
+}
+
+model KnowledgeDocument {
+  id        String   @id @default(cuid())
+  slug      String   @unique
+  title     String
+  content   String
+  active    Boolean  @default(true)
+  version   String   @default("kb-v1")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model AuditLog {
+  id           String   @id @default(cuid())
+  actorUserId  String?
+  targetUserId String?
+  eventType    String
+  metadata     String
+  createdAt    DateTime @default(now())
+  actor        User?    @relation("ActorAuditLogs", fields: [actorUserId], references: [id], onDelete: SetNull)
+  target       User?    @relation("TargetAuditLogs", fields: [targetUserId], references: [id], onDelete: SetNull)
+
+  @@index([eventType])
+  @@index([targetUserId])
+}
