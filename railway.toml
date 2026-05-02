@@ -1,5 +1,5 @@
 [deploy]
-startCommand = "npm run start"
+startCommand = "prisma migrate deploy && prisma db seed && next start"
 healthcheckPath = "/"
 healthcheckTimeout = 60
 restartPolicyType = "on_failure"
